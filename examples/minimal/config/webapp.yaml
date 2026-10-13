@@ -1,0 +1,6 @@
+# Shell configuration for the minimal example.
+WEBAPP_HOST: "127.0.0.1"
+WEBAPP_PORT: 8050
+WEBAPP_PANES:
+  - runs
+WEBAPP_TITLE: "ai-ui example"

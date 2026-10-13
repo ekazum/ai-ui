@@ -1,0 +1,3 @@
+# Runs pane configuration for the minimal example; paths are relative to examples/minimal/.
+RUNS_ROOT: "records"
+RUNS_INGEST_INTERVAL_SECONDS: 10.0
