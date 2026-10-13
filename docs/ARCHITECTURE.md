@@ -133,7 +133,7 @@ Routes, under the pane's slug: `GET api/runs?kind=<tab>`, `GET api/runs/<run_id>
 ## 9. Directory Structure
 
 ```text
-ai_ui/
+src/ai_ui/
   __init__.py
   serve.py
   yaml_config.py

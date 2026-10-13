@@ -3,7 +3,7 @@
 Each configuration is a YAML file loaded and validated at startup by its schema. Keys use `UPPER_SNAKE_CASE`.
 Unknown keys are rejected (`extra="forbid"`), so the yaml and the schema must change together.
 
-## `WebAppConfig` (`ai_ui/shell/webapp_config.py`)
+## `WebAppConfig` (`src/ai_ui/shell/webapp_config.py`)
 
 Shell configuration; the path is given by `--config` (default `config/webapp.yaml`).
 
@@ -14,7 +14,7 @@ Shell configuration; the path is given by `--config` (default `config/webapp.yam
 | `WEBAPP_PANES` | `list[str]` | `[]`          | `serve`  | Pane slugs to register, in tab order; empty = shell only       |
 | `WEBAPP_TITLE` | `str`       | `"Runs"`      | `WebApp` | Page title and heading shown by the shell                      |
 
-## `BenchmarkConfig` (`ai_ui/runs/benchmark_config.py`)
+## `BenchmarkConfig` (`src/ai_ui/runs/benchmark_config.py`)
 
 Runs pane configuration; the project passes the path when it builds the pane.
 
