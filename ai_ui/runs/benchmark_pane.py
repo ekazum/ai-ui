@@ -1,6 +1,6 @@
 """``BenchmarkPane`` — the Training-Runs pane.
 
-See ``WEBAPP_ARCHITECTURE.md`` §3. Wraps ``DashboardStore`` and the project's
+See ``docs/ARCHITECTURE.md`` §3. Wraps ``DashboardStore`` and the project's
 ingest: the blueprint carries the run table, the per-run figures, the
 selection and run deletion, and ``start`` runs the rescan loop that keeps the
 DB following live runs. Read-only apart from DELETE; there is a run table but

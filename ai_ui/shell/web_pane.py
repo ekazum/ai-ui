@@ -1,6 +1,6 @@
 """``WebPane`` — the contract a pane implements.
 
-See ``WEBAPP_ARCHITECTURE.md`` §3. A pane is constructed once at startup and
+See ``docs/ARCHITECTURE.md`` §3. A pane is constructed once at startup and
 registered with ``WebApp``, which mounts its blueprint under a URL prefix taken
 from its slug, places its fragment in the page, and starts whatever background
 threads it keeps for the life of the process. A pane owns its own configuration

@@ -1,6 +1,6 @@
 """``WebApp`` — the Flask application built from the registered panes.
 
-See ``WEBAPP_ARCHITECTURE.md`` §4 and §5. Mounts each pane's blueprint under a
+See ``docs/ARCHITECTURE.md`` §4 and §5. Mounts each pane's blueprint under a
 URL prefix taken from its slug, composes the single document from the shell
 markup, the panes' asset tags and their fragments, serves the shell's own
 assets, and starts each pane's background threads before serving.
