@@ -1,4 +1,4 @@
--- Benchmark telemetry store: per-run metrics, documents and figures.
+-- Runs DB: per-run metrics, documents and figures.
 -- One row per run in `runs`; CSV rows land in `metrics` (long format, one
 -- row per cell), JSON artefacts in `documents`, ingest bookkeeping in
 -- `sources`, pre-rendered figures in `plots`.

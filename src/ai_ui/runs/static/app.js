@@ -2,7 +2,7 @@
 
 // The pane's blueprint is mounted under its slug, so every request is relative
 // to this base rather than to the page root.
-const API_BASE = "benchmark/";
+const API_BASE = "runs/";
 
 // Runs in these states never change again; any other status is treated as
 // live and its figures are re-fetched while it stays checked.
@@ -16,6 +16,56 @@ function esc(s) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+// --- default metric view ---------------------------------------------------
+// Used when a run has no stored figures: one block per metrics family; series
+// with several steps become line charts, single values a key/value table.
+const CHART_W = 300, CHART_H = 150, CHART_PAD = 34;
+
+function fmt(v) {
+  if (!isFinite(v)) return String(v);
+  const a = Math.abs(v);
+  return (a !== 0 && (a < 1e-3 || a >= 1e5)) ? v.toExponential(2) : String(+v.toPrecision(4));
+}
+
+function lineChart(name, points) {
+  const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  if (x1 === x0) x1 = x0 + 1;
+  if (y1 === y0) { y0 -= 0.5; y1 += 0.5; }
+  const sx = x => CHART_PAD + (x - x0) / (x1 - x0) * (CHART_W - CHART_PAD - 6);
+  const sy = y => CHART_H - 18 - (y - y0) / (y1 - y0) * (CHART_H - 30);
+  const line = points.map(p => sx(p[0]).toFixed(1) + "," + sy(p[1]).toFixed(1)).join(" ");
+  return `<figure class="curve"><figcaption>${esc(name)}</figcaption>` +
+    `<svg viewBox="0 0 ${CHART_W} ${CHART_H}" width="${CHART_W}" height="${CHART_H}" role="img" aria-label="${esc(name)}">` +
+    `<line class="axis" x1="${CHART_PAD}" y1="${CHART_H - 18}" x2="${CHART_W - 6}" y2="${CHART_H - 18}"/>` +
+    `<line class="axis" x1="${CHART_PAD}" y1="12" x2="${CHART_PAD}" y2="${CHART_H - 18}"/>` +
+    `<text x="${CHART_PAD - 3}" y="16" text-anchor="end">${esc(fmt(y1))}</text>` +
+    `<text x="${CHART_PAD - 3}" y="${CHART_H - 18}" text-anchor="end">${esc(fmt(y0))}</text>` +
+    `<text x="${CHART_PAD}" y="${CHART_H - 4}">${esc(fmt(x0))}</text>` +
+    `<text x="${CHART_W - 6}" y="${CHART_H - 4}" text-anchor="end">${esc(fmt(x1))}</text>` +
+    `<polyline points="${line}"/></svg></figure>`;
+}
+
+function metricsHtml(metrics) {
+  const families = Object.keys(metrics || {});
+  if (families.length === 0) return '<p class="muted">no figures and no numeric metrics.</p>';
+  let html = "";
+  for (const family of families) {
+    const series = metrics[family];
+    const names = Object.keys(series);
+    const curves = names.filter(n => series[n].length > 1);
+    const scalars = names.filter(n => series[n].length === 1);
+    html += `<div class="metric-family"><h3>${esc(family)}</h3>`;
+    if (curves.length) html += '<div class="curves">' + curves.map(n => lineChart(n, series[n])).join("") + "</div>";
+    if (scalars.length) {
+      html += '<table class="scalars"><tbody>' + scalars.map(n =>
+        `<tr><td>${esc(n)}</td><td>${esc(fmt(series[n][0][1]))}</td></tr>`).join("") + "</tbody></table>";
+    }
+    html += "</div>";
+  }
+  return html;
+}
+
 // --- API client ------------------------------------------------------------
 class DashboardClient {
   async index(kind) {
@@ -27,6 +77,11 @@ class DashboardClient {
     const res = await fetch(API_BASE + "api/runs/" + encodeURIComponent(id) + "/plots");
     if (!res.ok) return null;
     return (await res.json()).plots;  // [{slug, caption, png}]
+  }
+  async metrics(id) {
+    const res = await fetch(API_BASE + "api/runs/" + encodeURIComponent(id) + "/metrics");
+    if (!res.ok) return null;
+    return (await res.json()).metrics;  // {family: {metric: [[step, value], ...]}}
   }
   async deleteRun(id) {
     const res = await fetch(API_BASE + "api/runs/" + encodeURIComponent(id), { method: "DELETE" });
@@ -351,7 +406,8 @@ class Dashboard {
     let html = `<h2>${esc(id)}${esc(label)}</h2>`;
     html += `<p class="muted">status: ${esc(status)} · created: ${esc(created)}</p>`;
     if (!plots || plots.length === 0) {
-      html += '<p class="muted">no plots (missing validation curve / eval).</p>';
+      // No project figures: draw the run's stored metrics instead.
+      html += metricsHtml(await this.client.metrics(id));
     } else {
       for (const p of plots) {
         html += `<figure class="plot-${esc(p["slug"])}"><figcaption>${esc(p["caption"])}</figcaption>` +
@@ -393,7 +449,7 @@ class Dashboard {
   }
 }
 
-// The shell calls this the first time the Training-Runs tab is shown, so the
+// The shell calls this the first time the runs tab is shown, so the
 // table load and the refresh timer start with the pane rather than the page.
 window.aiUiPanes = window.aiUiPanes || {};
-window.aiUiPanes["benchmark"] = () => new Dashboard();
+window.aiUiPanes["runs"] = () => new Dashboard();

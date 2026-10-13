@@ -1,12 +1,13 @@
-"""``DashboardStore`` — the dashboard's data layer over the benchmark DB.
+"""``RunsStore`` — the runs pane's data layer over the runs DB.
 
 Pure SQLite reader plus run deletion: the run table and the pre-rendered
-figures come from ``benchmarks.db`` as written by ``BenchmarkIngest`` — the
-serving path never opens a record file.
+figures come from the DB as written by ``RecordIngest`` — the serving path
+never opens a record file.
 """
 
 import json
 import logging
+import math
 import shutil
 import sqlite3
 from collections.abc import Iterator
@@ -20,8 +21,8 @@ from .runs_spec import RunsSpec
 logger = logging.getLogger(__name__)
 
 
-class DashboardStore:
-    """Read/delete access to the benchmark DB."""
+class RunsStore:
+    """Read/delete access to the runs DB."""
 
     def __init__(self, db_path: Path, root: Path, spec: RunsSpec) -> None:
         self._db_path = Path(db_path)
@@ -93,6 +94,21 @@ class DashboardStore:
                 "SELECT slug, caption, png FROM plots WHERE run_id = ? "
                 "ORDER BY ord", (run_id,))]
 
+    def metrics(self, run_id: str) -> dict[str, dict[str, list[list[float]]]] | None:
+        """One run's numeric metrics as ``{family: {metric: [[step, value], ...]}}``, or ``None``."""
+        run_id = unquote(run_id)
+        with self._connect() as db:
+            if not self._known(db, run_id):
+                return None
+            out: dict[str, dict[str, list[list[float]]]] = {}
+            for family, metric, step, value in db.execute(
+                    "SELECT family, metric, step, value FROM metrics "
+                    "WHERE run_id = ? AND value IS NOT NULL "
+                    "ORDER BY family, metric, step", (run_id,)):
+                if math.isfinite(value):       # NaN / inf are not JSON
+                    out.setdefault(family, {}).setdefault(metric, []).append([step, value])
+            return out
+
     def get_selection(self) -> list[str]:
         return sorted(self._selected)
 
@@ -126,5 +142,5 @@ class DashboardStore:
             for table in ("runs", "metrics", "documents", "sources", "plots"):
                 db.execute(f"DELETE FROM {table} WHERE run_id = ?", (run_id,))
         self._selected.discard(run_id)
-        logger.info("deleted benchmark run %s", run_id)
+        logger.info("deleted run %s", run_id)
         return True

@@ -1,0 +1,40 @@
+/* Runs pane. Every rule is scoped to #runs-pane so the shell and the other
+   panes are untouched. */
+#runs-pane .muted { color:#777; font-size:.85rem; }
+#runs-pane #tabs { display:flex; gap:.4rem; margin:.8rem 0 .6rem; border-bottom:2px solid #ddd; }
+#runs-pane #tabs button { border:1px solid #ddd; border-bottom:none; border-radius:6px 6px 0 0;
+                               background:#f5f5f7; padding:.45rem 1.1rem; font-size:.95rem; cursor:pointer; }
+#runs-pane #tabs button.active { background:#fff; font-weight:600; border-color:#bbb;
+                                      position:relative; top:2px; }
+#runs-pane #search { margin:.6rem 0; padding:.4rem; width:22rem; font-size:1rem; }
+#runs-pane .tablewrap { overflow:auto; max-height:28rem; border:1px solid #ddd; border-radius:6px; }
+#runs-pane table { border-collapse:collapse; font-size:.82rem; white-space:nowrap; }
+#runs-pane th, #runs-pane td { border:1px solid #e3e3e3; padding:.3rem .5rem; text-align:right; }
+#runs-pane th:first-child, #runs-pane td:first-child { text-align:left; }
+#runs-pane .col-label { text-align:left; }
+#runs-pane th:first-child { cursor:default; }
+#runs-pane thead th { position:sticky; top:0; background:#f5f5f7; cursor:pointer; user-select:none; }
+#runs-pane tbody tr:nth-child(even) { background:#fafafa; }
+#runs-pane section { margin:1.6rem 0; padding-top:.4rem; border-top:1px solid #eee; }
+#runs-pane figure { margin:.6rem 0; }
+#runs-pane img { max-width:100%; border:1px solid #eee; border-radius:4px; }
+#runs-pane figcaption { font-weight:600; margin-bottom:.3rem; }
+#runs-pane #controls { display:flex; gap:1rem; flex-wrap:wrap; margin:.6rem 0; }
+#runs-pane #controls fieldset { border:1px solid #ddd; border-radius:6px; padding:.3rem .7rem; }
+#runs-pane #controls legend { font-size:.8rem; color:#555; }
+#runs-pane #controls label { margin-right:.8rem; font-size:.9rem; white-space:nowrap; }
+#runs-pane #controls button.danger { color:#c62828; border-color:#e0b4b4; }
+#runs-pane #controls button.danger:hover { background:#fde8e8; }
+#runs-pane td a.run-link { color:#1565c0; text-decoration:none; }
+#runs-pane td a.run-link:hover { text-decoration:underline; }
+#runs-pane #live-row { margin:.3rem 0; font-size:.85rem; color:#555;
+                            display:flex; gap:1rem; align-items:center; }
+#runs-pane .metric-family h3 { font-size:.95rem; margin:1rem 0 .3rem; }
+#runs-pane .curves { display:flex; flex-wrap:wrap; gap:.8rem; }
+#runs-pane figure.curve { margin:0; }
+#runs-pane figure.curve figcaption { font-weight:500; font-size:.8rem; }
+#runs-pane figure.curve svg { border:1px solid #eee; border-radius:4px; background:#fff; }
+#runs-pane figure.curve polyline { fill:none; stroke:#1565c0; stroke-width:1.5; }
+#runs-pane figure.curve line.axis { stroke:#bbb; stroke-width:1; }
+#runs-pane figure.curve text { font-size:9px; fill:#666; }
+#runs-pane table.scalars td { text-align:left; }

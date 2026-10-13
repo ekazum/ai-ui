@@ -14,12 +14,12 @@ Shell configuration; the path is given by `--config` (default `config/webapp.yam
 | `WEBAPP_PANES` | `list[str]` | `[]`          | `serve`  | Pane slugs to register, in tab order; empty = shell only       |
 | `WEBAPP_TITLE` | `str`       | `"Runs"`      | `WebApp` | Page title and heading shown by the shell                      |
 
-## `BenchmarkConfig` (`src/ai_ui/runs/benchmark_config.py`)
+## `RunsConfig` (`src/ai_ui/runs/runs_config.py`)
 
 Runs pane configuration; the project passes the path when it builds the pane.
 
-| Key                                 | Type          | Default             | Used by         | Description                                                     |
-|-------------------------------------|---------------|---------------------|-----------------|-----------------------------------------------------------------|
-| `BENCHMARK_ROOT`                    | `str`         | `data/benchmarks`   | `BenchmarkPane` | Directory holding the per-run records                           |
-| `BENCHMARK_DB`                      | `str \| None` | `null`              | `BenchmarkPane` | Runs DB path; `null` = `benchmarks.db` under the root           |
-| `BENCHMARK_INGEST_INTERVAL_SECONDS` | `float`       | `30.0`              | `BenchmarkPane` | Seconds between record rescans into the DB (> 0)                |
+| Key                            | Type          | Default  | Used by    | Description                                                     |
+|--------------------------------|---------------|----------|------------|-----------------------------------------------------------------|
+| `RUNS_ROOT`                    | `str`         | `runs`   | `RunsPane` | Directory holding the per-run records                           |
+| `RUNS_DB`                      | `str \| None` | `null`   | `RunsPane` | Runs DB path; `null` = `runs.db` under the root                 |
+| `RUNS_INGEST_INTERVAL_SECONDS` | `float`       | `30.0`   | `RunsPane` | Seconds between record rescans into the DB (> 0)                |

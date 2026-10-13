@@ -1,6 +1,6 @@
-"""``BenchmarkPane`` — the Training-Runs pane.
+"""``RunsPane`` — the runs pane.
 
-See ``docs/ARCHITECTURE.md`` §3. Wraps ``DashboardStore`` and the project's
+See ``docs/ARCHITECTURE.md`` §3. Wraps ``RunsStore`` and the project's
 ingest: the blueprint carries the run table, the per-run figures, the
 selection and run deletion, and ``start`` runs the rescan loop that keeps the
 DB following live runs. Read-only apart from DELETE; there is a run table but
@@ -17,45 +17,47 @@ from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
 from ..shell.web_pane import WebPane
-from .benchmark_config import BenchmarkConfig
-from .dashboard_store import DashboardStore
+from .runs_config import RunsConfig
 from .runs_spec import RunsSpec
+from .runs_store import RunsStore
 
 logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
+SLUG = "runs"
 
 
-class RecordIngest(Protocol):
+class Rescan(Protocol):
     """What the rescan loop needs: one pass over the records into the DB."""
 
     def run(self) -> None: ...
 
 
-class BenchmarkPane(WebPane):
-    """Training runs: the table, the stored figures, selection and deletion."""
+class RunsPane(WebPane):
+    """Runs: the table, the stored figures, selection and deletion."""
 
-    def __init__(self, config: BenchmarkConfig, spec: RunsSpec,
-                 ingest: RecordIngest) -> None:
-        """Open the store over the telemetry DB and keep the project's ingest."""
+    def __init__(self, config: RunsConfig, spec: RunsSpec, ingest: Rescan,
+                 title: str = "Runs") -> None:
+        """Open the store over the runs DB and keep the project's ingest."""
         self._config = config
         self._spec = spec
-        self._store = DashboardStore(config.db_path, config.root_path, spec)
+        self._store = RunsStore(config.db_path, config.root_path, spec)
         self._ingest = ingest
+        self._title = title
 
     @property
     def slug(self) -> str:
-        return "benchmark"
+        return SLUG
 
     @property
     def title(self) -> str:
-        return "Training Runs"
+        return self._title
 
     def fragment(self) -> Path:
-        return STATIC_DIR / "benchmark_pane.html"
+        return STATIC_DIR / "runs_pane.html"
 
     def assets(self) -> list[str]:
-        return ["benchmark.css", "app.js"]
+        return ["runs.css", "app.js"]
 
     def blueprint(self) -> Blueprint:
         """The pane's routes and its static folder."""
@@ -66,6 +68,9 @@ class BenchmarkPane(WebPane):
         blueprint.add_url_rule("/api/runs", "runs", self._runs)
         blueprint.add_url_rule(
             "/api/runs/<path:run_id>/plots", "plots", self._plots,
+        )
+        blueprint.add_url_rule(
+            "/api/runs/<path:run_id>/metrics", "metrics", self._metrics,
         )
         blueprint.add_url_rule(
             "/api/selection", "selection", self._selection, methods=["PUT"],
@@ -79,7 +84,7 @@ class BenchmarkPane(WebPane):
     def start(self) -> None:
         """Run the rescan loop for the life of the process."""
         threading.Thread(
-            target=self._ingest_loop, name="benchmark-ingest", daemon=True,
+            target=self._ingest_loop, name="runs-ingest", daemon=True,
         ).start()
 
     def _ingest_loop(self) -> None:
@@ -94,7 +99,7 @@ class BenchmarkPane(WebPane):
                 self._ingest.run()
             except Exception as exc:
                 logger.exception("ingest pass failed: %s", exc)
-            time.sleep(self._config.BENCHMARK_INGEST_INTERVAL_SECONDS)
+            time.sleep(self._config.RUNS_INGEST_INTERVAL_SECONDS)
 
     def _runs(self) -> ResponseReturnValue:
         """Table payload for one tab, plus plot kinds, the tab list and the selection."""
@@ -107,6 +112,13 @@ class BenchmarkPane(WebPane):
         if plots is None:
             return jsonify({"error": "not found"}), 404
         return jsonify({"plots": plots})
+
+    def _metrics(self, run_id: str) -> ResponseReturnValue:
+        """One run's numeric metrics by family; the page draws them when the run has no figures."""
+        metrics = self._store.metrics(run_id)
+        if metrics is None:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({"metrics": metrics})
 
     def _selection(self) -> ResponseReturnValue:
         """Replace the selected-run set, kept in memory by the store."""

@@ -42,9 +42,9 @@ pane's container and initialises its script the first time it is shown.
 | `shell/web_app.py`          | `WebApp`                           | Pane registry, page assembly, the Flask application and server    |
 | `shell/web_static/`         |                                    | Shell markup, script and stylesheet                               |
 | `runs/runs_spec.py`         | `RunsSpec`, `RunsTab`              | The project's tabs (run kinds per tab) and leading table columns  |
-| `runs/benchmark_config.py`  | `BenchmarkConfig`                  | Runs pane configuration: records root, DB path, rescan interval   |
-| `runs/benchmark_pane.py`    | `BenchmarkPane`                    | Runs pane routes and the rescan loop                              |
-| `runs/dashboard_store.py`   | `DashboardStore`                   | Read and delete access to the runs DB                             |
+| `runs/runs_config.py`       | `RunsConfig`                       | Runs pane configuration: records root, DB path, rescan interval   |
+| `runs/runs_pane.py`         | `RunsPane`                         | Runs pane routes (slug `runs`) and the rescan loop                |
+| `runs/runs_store.py`        | `RunsStore`                        | Read and delete access to the runs DB                             |
 | `runs/ingest.py`            | `RecordIngest`, `RecordReader`     | Rescan of records into the DB; the project's record description   |
 | `runs/db_schema.sql`        |                                    | Runs DB schema                                                    |
 | `runs/static/`              |                                    | Runs pane markup, script and stylesheet                           |
@@ -107,15 +107,19 @@ stores the reader's table row and figures.
 `RunsSpec` names the tabs, the run kinds each tab shows and the columns that lead the table. The API returns the tab
 list with the table, so the browser renders whatever tabs the project declares.
 
-Routes, under the pane's slug: `GET api/runs?kind=<tab>`, `GET api/runs/<run_id>/plots`, `PUT api/selection`,
-`DELETE api/runs/<run_id>`. The pane has no route that starts a run.
+A run whose reader supplies no figures is drawn from its `metrics` rows instead: one block per family, a line chart
+per metric with more than one step, and a table of the single-value metrics.
+
+Routes, under the pane's slug: `GET api/runs?kind=<tab>`, `GET api/runs/<run_id>/plots`,
+`GET api/runs/<run_id>/metrics`, `PUT api/selection`, `DELETE api/runs/<run_id>`. The pane has no route that starts a
+run.
 
 ---
 
 ## 7. Configuration
 
 `WebAppConfig` carries the bind address, the listening port, the slugs of the panes to register and the page title.
-`BenchmarkConfig` carries the records root, the DB path and the rescan interval. Both are read once at startup; see
+`RunsConfig` carries the records root, the DB path and the rescan interval. Both are read once at startup; see
 `CONFIGURATION.md`.
 
 ---
@@ -149,15 +153,15 @@ src/ai_ui/
         shell.css
   runs/
     runs_spec.py
-    benchmark_config.py
-    benchmark_pane.py
-    dashboard_store.py
+    runs_config.py
+    runs_pane.py
+    runs_store.py
     ingest.py
     db_schema.sql
     static/
-      benchmark_pane.html
+      runs_pane.html
       app.js
-      benchmark.css
+      runs.css
 docs/
   ARCHITECTURE.md
   CONFIGURATION.md
