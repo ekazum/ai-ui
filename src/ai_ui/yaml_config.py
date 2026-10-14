@@ -3,7 +3,7 @@
 Every config model inherits ``from_yaml`` from here (directly, or via
 ``BaseConfig``) so the shared file/parse/mapping handling lives in one place.
 A subclass supplies its fields, a static ``_validate(raw)`` for type/range
-checks, an optional ``_extra_kwargs(raw)`` for computed constructor kwargs,
+checks, an optional ``_constructor_kwargs(raw)`` that adds computed fields,
 and an optional ``log_loaded`` load summary.
 """
 
@@ -39,7 +39,7 @@ class YamlConfig(BaseModel):
                 f"{cls.__name__} YAML must parse to a mapping; got {type(raw).__name__}"
             )
         cls._validate(raw)
-        cfg = cls(**raw, **cls._extra_kwargs(raw))
+        cfg = cls(**cls._constructor_kwargs(raw))
         cfg.log_loaded()
         return cfg
 
@@ -48,9 +48,9 @@ class YamlConfig(BaseModel):
         """Type + range checks; overridden by subclasses (default no-op)."""
 
     @classmethod
-    def _extra_kwargs(cls, raw: dict[str, Any]) -> dict[str, Any]:
-        """Constructor kwargs computed from ``raw``; overridden by subclasses."""
-        return {}
+    def _constructor_kwargs(cls, raw: dict[str, Any]) -> dict[str, Any]:
+        """Constructor kwargs from the validated ``raw``; subclasses add computed ones."""
+        return raw
 
     def log_loaded(self) -> None:
         """Emit a one-line load summary; overridden by subclasses (default no-op)."""

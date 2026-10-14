@@ -14,7 +14,7 @@ import random
 from pathlib import Path
 
 from ai_ui import serve
-from ai_ui.runs.ingest import RecordIngest
+from ai_ui.runs.ingest import RecordIngest, RecordReader
 from ai_ui.runs.runs_config import RunsConfig
 from ai_ui.runs.runs_pane import SLUG, RunsPane
 from ai_ui.runs.runs_spec import RunsSpec, RunsTab
@@ -28,7 +28,7 @@ SPEC = RunsSpec(
 )
 
 
-class Reader:
+class Reader(RecordReader):
     """The example's record layout: a training CSV, a one-row test CSV, no figures."""
 
     csv_families = {"train.csv": "train", "test.csv": "test"}
