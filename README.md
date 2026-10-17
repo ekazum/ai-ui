@@ -37,6 +37,8 @@ A record is a directory under the runs root with a `meta.json` (`run_id`, `kind`
 Its reader (`examples/minimal/app.py`, about 25 lines) supplies no figures, so the pane draws each run from its
 metrics.
 
+`AGENTS.md` lists the signatures, the assembly order and the rules to keep.
+
 ## License
 
 Apache-2.0
