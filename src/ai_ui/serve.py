@@ -3,7 +3,8 @@
 import logging
 from collections.abc import Callable, Mapping
 
-from .logging import setup_logging
+from ai_runtime.logging import setup_logging
+
 from .shell.web_app import WebApp
 from .shell.web_pane import WebPane
 from .shell.webapp_config import WebAppConfig, parse_args

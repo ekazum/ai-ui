@@ -4,7 +4,7 @@ ai-ui gives a web shell that hosts independent panes in one Flask service, and a
 records from a SQLite runs DB it keeps current by rescanning the record directories. A project adds a dashboard by
 describing its records to the runs pane, or by writing its own pane.
 
-Install: `pip install "ai-ui @ git+https://github.com/ekazum/ai-ui.git@v0.4.2"`.
+Install: `pip install "ai-ui @ git+https://github.com/ekazum/ai-ui.git@v0.4.3"`.
 
 ## What ai-ui provides, what the project writes
 

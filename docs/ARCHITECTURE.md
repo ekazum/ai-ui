@@ -36,7 +36,6 @@ pane's container and initialises its script the first time it is shown.
 |-----------------------------|------------------------------------|-------------------------------------------------------------------|
 | `serve.py`                  | `serve`                            | Entry: shell config, pane builders by slug, serving               |
 | `yaml_config.py`            | `YamlConfig`                       | Typed YAML config base                                            |
-| `logging.py`                | `setup_logging`                    | Root logger to stdout                                             |
 | `shell/webapp_config.py`    | `WebAppConfig`                     | Shell configuration: bind address, port, pane slugs, title        |
 | `shell/web_pane.py`         | `WebPane`                          | The contract a pane implements                                    |
 | `shell/web_app.py`          | `WebApp`                           | Pane registry, page assembly, the Flask application and server    |
@@ -141,7 +140,6 @@ src/ai_ui/
   __init__.py
   serve.py
   yaml_config.py
-  logging.py
   shell/
     webapp_config.py
     web_pane.py
