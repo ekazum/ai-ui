@@ -75,11 +75,12 @@ register its script as `window.aiUiPanes[slug]`; add its builder to the `serve` 
 - `examples/minimal/app.py` — three synthetic runs, a 25-line reader, no figures;
   `python examples/minimal/app.py`, then http://127.0.0.1:8050.
 
-## The four repos
+## The five repos
 
 | Repo | Gives | Depends on |
 |---|---|---|
-| [ai-runtime](https://github.com/ekazum/ai-runtime) | threads, `SHUTDOWN_SENTINEL`, `Pipeline`, GPU batching, service supervision, SQLite stores, checkpoint managers, `YamlConfig` | standard library; `[torch]`, `[config]` |
+| [ai-runtime](https://github.com/ekazum/ai-runtime) | threads, `SHUTDOWN_SENTINEL`, `ThreadStages`, GPU batching, service supervision, SQLite stores, checkpoint managers, `YamlConfig`, logging | standard library; `[torch]`, `[config]` |
 | [ai-llm](https://github.com/ekazum/ai-llm) | an LLM generation service: engine, GPU worker, server, client, stats store | ai-runtime |
 | ai-ui | the web shell and runs dashboard above | ai-runtime |
-| [rl-core](https://github.com/ekazum/rl-core) | RL threads and data types: PPO, prioritized-replay client threads, Q-network inference, checkpoint writer | ai-runtime |
+| [rl-core](https://github.com/ekazum/rl-core) | RL threads and data types: PPO, prioritized replay, Q-network inference, DQN learner, checkpoint writer | ai-runtime |
+| [ai-pipeline](https://github.com/ekazum/ai-pipeline) | data preparation stages | ai-runtime; `[embed]`, `[llm]`, `[reduce]` |
