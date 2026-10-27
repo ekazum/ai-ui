@@ -1,6 +1,8 @@
-"""``RunsSpec`` — what a project declares for the runs pane: its tabs and the table's leading columns."""
+"""``RunsSpec`` — what a project declares for the runs pane: its tabs, their topics and the table's leading columns."""
 
 from dataclasses import dataclass
+
+from .runs_topic import RunsTopic
 
 
 @dataclass(frozen=True)
@@ -10,14 +12,16 @@ class RunsTab:
     slug: str
     caption: str
     kinds: tuple[str, ...]
+    topics: tuple[RunsTopic, ...] = ()
 
 
 @dataclass(frozen=True)
 class RunsSpec:
-    """Tabs in display order (the first is the default) and the leading table columns."""
+    """Tabs in display order (the first is the default), the leading table columns, the configuration documents."""
 
     tabs: tuple[RunsTab, ...]
     leading_columns: tuple[str, ...] = ()
+    config_documents: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.tabs:

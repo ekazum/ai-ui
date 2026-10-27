@@ -1,13 +1,22 @@
 /* Shell chrome only. Each pane's stylesheet is scoped to its own container. */
 body { font-family: system-ui, Arial, sans-serif; margin: 0; color: #222; background: #fff; }
-#shell-header { padding: 1rem 1.2rem 0; }
-#shell-header h1 { margin: 0 0 .5rem; font-size: 1.3rem; }
-#shell-tabs { display: flex; gap: .4rem; padding: 0 1.2rem; border-bottom: 2px solid #ddd; }
-#shell-tabs button { border: 1px solid #ddd; border-bottom: none; border-radius: 6px 6px 0 0;
-                     background: #f5f5f7; padding: .45rem 1.1rem; font-size: .95rem; cursor: pointer; }
-#shell-tabs button.active { background: #fff; font-weight: 600; border-color: #bbb;
-                            position: relative; top: 2px; }
-#shell-tabs button:disabled { color: #aaa; cursor: default; background: #fafafa; }
+#shell-header { padding: 1rem 1.2rem .5rem; border-bottom: 2px solid #ddd; }
+#shell-header h1 { margin: 0; font-size: 1.3rem; }
+#shell-body { display: flex; align-items: flex-start; }
+#shell-menu { flex: 0 0 12rem; position: sticky; top: 0; padding: .8rem .6rem; }
+#shell-menu h2 { margin: .8rem .4rem .3rem; font-size: .75rem; text-transform: uppercase;
+                 letter-spacing: .05em; color: #777; }
+#shell-menu nav:first-child h2 { margin-top: 0; }
+#shell-menu button { display: block; width: 100%; text-align: left; border: none; border-radius: 6px;
+                     background: none; padding: .35rem .6rem; font-size: .95rem; cursor: pointer; }
+#shell-menu button:hover { background: #f0f0f3; }
+#shell-menu button.active { background: #e4e8f0; font-weight: 600; }
+#shell-menu button:disabled { color: #aaa; cursor: default; background: none; }
+#shell-menu .shell-group > span { display: block; padding: .35rem .6rem; font-size: .95rem; }
+#shell-menu .shell-group > button { padding-left: 1.4rem; font-size: .9rem; }
+#shell-main { flex: 1 1 auto; min-width: 0; border-left: 2px solid #ddd; }
+#shell-top > section { padding: 1rem 1.2rem 0; }
+#shell-top:not(:empty) { border-bottom: 2px solid #ddd; }
 #shell-panes > section { padding: 1rem 1.2rem; }
 #shell-panes:empty::after { content: "No panes registered."; display: block;
                             padding: 1rem 1.2rem; color: #777; font-size: .85rem; }

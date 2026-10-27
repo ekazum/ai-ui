@@ -59,7 +59,9 @@ class RunsStore:
         return {"columns": self._columns(rows), "rows": rows, "n": len(rows),
                 "root": str(self._root), "kinds": kinds,
                 "selected": self.get_selection(), "kind": kind,
-                "tabs": [{"slug": t.slug, "caption": t.caption}
+                "tabs": [{"slug": t.slug, "caption": t.caption,
+                          "topics": [{"slug": p.slug, "caption": p.caption, "plots": list(p.plots)}
+                                     for p in t.topics]}
                          for t in self._spec.tabs]}
 
     @staticmethod
@@ -108,6 +110,18 @@ class RunsStore:
                 if math.isfinite(value):       # NaN / inf are not JSON
                     out.setdefault(family, {}).setdefault(metric, []).append([step, value])
             return out
+
+    def documents(self, run_id: str) -> dict[str, Any] | None:
+        """One run's configuration documents by name, or ``None`` if the run is unknown."""
+        run_id = unquote(run_id)
+        names = self._spec.config_documents
+        marks = ",".join("?" * len(names))
+        with self._connect() as db:
+            if not self._known(db, run_id):
+                return None
+            return {name: json.loads(doc) for name, doc in db.execute(
+                f"SELECT name, json FROM documents WHERE run_id = ? AND name IN ({marks})",
+                (run_id, *names))}
 
     def get_selection(self) -> list[str]:
         return sorted(self._selected)

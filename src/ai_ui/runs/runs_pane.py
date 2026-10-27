@@ -16,6 +16,7 @@ from typing import Protocol
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
+from ..shell.menu_item import MenuItem
 from ..shell.web_pane import WebPane
 from .runs_config import RunsConfig
 from .runs_spec import RunsSpec
@@ -25,6 +26,10 @@ logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
 SLUG = "runs"
+# The Details item showing the selected runs' configuration documents (app.ts CONFIG_ITEM).
+CONFIG_ITEM = "configuration"
+# The Details item showing every figure, for a tab that declares no topics.
+ALL_ITEM = "all"
 
 
 class Rescan(Protocol):
@@ -56,6 +61,25 @@ class RunsPane(WebPane):
     def fragment(self) -> Path:
         return STATIC_DIR / "runs_pane.html"
 
+    def top_fragment(self) -> Path:
+        return STATIC_DIR / "runs_table.html"
+
+    def modules(self) -> tuple[MenuItem, ...]:
+        """One module per tab."""
+        return tuple(MenuItem(tab.slug, tab.caption) for tab in self._spec.tabs)
+
+    def details(self) -> tuple[MenuItem, ...]:
+        """Configuration; Results with each tab's topics under its module; a plain Results for a tab without topics."""
+        topics = tuple(MenuItem(topic.slug, topic.caption, (tab.slug,))
+                       for tab in self._spec.tabs for topic in tab.topics)
+        plain = tuple(tab.slug for tab in self._spec.tabs if not tab.topics)
+        items = [MenuItem(CONFIG_ITEM, "Configuration")]
+        if topics:
+            items.append(MenuItem("results", "Results", children=topics))
+        if plain:
+            items.append(MenuItem(ALL_ITEM, "Results", plain))
+        return tuple(items)
+
     def assets(self) -> list[str]:
         return ["runs.css", "app.js"]
 
@@ -71,6 +95,9 @@ class RunsPane(WebPane):
         )
         blueprint.add_url_rule(
             "/api/runs/<path:run_id>/metrics", "metrics", self._metrics,
+        )
+        blueprint.add_url_rule(
+            "/api/runs/<path:run_id>/documents", "documents", self._documents,
         )
         blueprint.add_url_rule(
             "/api/selection", "selection", self._selection, methods=["PUT"],
@@ -119,6 +146,13 @@ class RunsPane(WebPane):
         if metrics is None:
             return jsonify({"error": "not found"}), 404
         return jsonify({"metrics": metrics})
+
+    def _documents(self, run_id: str) -> ResponseReturnValue:
+        """One run's configuration documents, as the spec names them."""
+        documents = self._store.documents(run_id)
+        if documents is None:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({"documents": documents})
 
     def _selection(self) -> ResponseReturnValue:
         """Replace the selected-run set, kept in memory by the store."""

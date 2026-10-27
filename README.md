@@ -4,8 +4,8 @@ A web shell and a runs dashboard for ML experiment records: one Flask service, i
 
 ## Parts
 
-- **Shell** (`ai_ui.shell`): `WebPane` is the pane contract (slug, title, blueprint, fragment, assets, background threads); `WebApp` composes the page and serves it.
-- **Runs pane** (`ai_ui.runs`): run table, per-run figures, selection, deletion. A project declares its tabs and leading columns as a `RunsSpec`, and its record layout as a `RecordReader` for `RecordIngest`.
+- **Shell** (`ai_ui.shell`): `WebPane` is the pane contract (slug, title, blueprint, fragment, assets, background threads, menu entries); `WebApp` composes the page and serves it. The page has a left column with a Modules menu above a Details menu, and on the right a top area that stays and a detail area showing the picked Details entry.
+- **Runs pane** (`ai_ui.runs`): the run table in the top area; below it the selected runs' configuration or one results topic's figures; selection, deletion. A project declares its tabs (the modules), each tab's topics, the leading columns and the configuration documents as a `RunsSpec`, and its record layout as a `RecordReader` for `RecordIngest`.
 - **Entry** (`ai_ui.serve`): loads the shell config, builds the panes it names, serves.
 
 ## Use
@@ -35,7 +35,7 @@ A record is a directory under the runs root with a `meta.json` (`run_id`, `kind`
 
 `python examples/minimal/app.py` writes three synthetic training runs and serves them on http://127.0.0.1:8050.
 Its reader (`examples/minimal/app.py`, about 25 lines) supplies no figures, so the pane draws each run from its
-metrics.
+metrics under Results.
 
 ## Scripts
 

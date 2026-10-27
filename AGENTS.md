@@ -4,14 +4,14 @@ ai-ui gives a web shell that hosts independent panes in one Flask service, and a
 records from a SQLite runs DB it keeps current by rescanning the record directories. A project adds a dashboard by
 describing its records to the runs pane, or by writing its own pane.
 
-Install: `pip install "ai-ui @ git+https://github.com/ekazum/ai-ui.git@v0.5.0"`.
+Install: `pip install "ai-ui @ git+https://github.com/ekazum/ai-ui.git@v0.6.0"`.
 
 ## What ai-ui provides, what the project writes
 
 | Area | ai-ui provides | The project writes |
 |---|---|---|
 | Shell | `WebApp`, `WebPane` (the pane contract), `serve`, `WebAppConfig` | `config/webapp.yaml`; a `WebPane` subclass for a pane of its own |
-| Runs pane | `RunsPane`, `RecordIngest`, `RunsStore`, `RunsSpec`, `RunsTab`, `RunsConfig` | a `RecordReader` subclass, a `RunsSpec`, `config/runs.yaml` |
+| Runs pane | `RunsPane`, `RecordIngest`, `RunsStore`, `RunsSpec`, `RunsTab`, `RunsTopic`, `RunsConfig` | a `RecordReader` subclass, a `RunsSpec`, `config/runs.yaml` |
 | Records | the runs DB schema and ingest | one directory per run with `meta.json` and its own files |
 
 ## Signatures
@@ -21,11 +21,16 @@ from ai_ui import serve
 serve(builders: Mapping[str, Callable[[], WebPane]], description="...") -> int
     # reads --config (default config/webapp.yaml); builds the panes named in WEBAPP_PANES, in that order
 
-ai_ui.shell.web_pane.WebPane             # slug, title, blueprint(), fragment(), assets() = [], start() = no threads
+ai_ui.shell.web_pane.WebPane             # slug, title, blueprint(), fragment(), assets() = [], start() = no threads,
+                                         # top_fragment() = None, modules() = (), details() = (MenuItem(slug, title),)
+ai_ui.shell.menu_item.MenuItem(slug, caption, modules: tuple[str, ...] | None = None, children: tuple[MenuItem, ...] = ())
 ai_ui.shell.web_app.WebApp(config, panes)   .app  .serve()
 
-ai_ui.runs.runs_spec.RunsTab(slug, caption, kinds: tuple[str, ...])   # slug is the ?kind= value
-ai_ui.runs.runs_spec.RunsSpec(tabs: tuple[RunsTab, ...], leading_columns: tuple[str, ...] = ())
+ai_ui.runs.runs_topic.RunsTopic(slug, caption, plots: tuple[str, ...])   # plots are figure slugs
+ai_ui.runs.runs_spec.RunsTab(slug, caption, kinds: tuple[str, ...], topics: tuple[RunsTopic, ...] = ())
+    # slug is the ?kind= value and the module slug
+ai_ui.runs.runs_spec.RunsSpec(tabs: tuple[RunsTab, ...], leading_columns: tuple[str, ...] = (),
+                              config_documents: tuple[str, ...] = ())   # document names shown under Configuration
 ai_ui.runs.runs_config.RunsConfig.from_yaml(path)   .root_path  .db_path
 ai_ui.runs.ingest.RecordIngest(root, db_path, reader, default_kind="run")   .run()
 ai_ui.runs.runs_pane.RunsPane(config, spec, ingest, title="Runs")    # SLUG = "runs"
@@ -56,13 +61,18 @@ A runs dashboard (see `examples/minimal/app.py`):
 
 A pane of its own: subclass `WebPane`; prefix element ids with the slug, scope its stylesheet to its container, and
 register its script as `window.aiUiPanes[slug]`; add its builder to the `serve` mapping and its slug to
-`WEBAPP_PANES`.
+`WEBAPP_PANES`. Override `details()` to limit its Details entry to some modules, and listen for the `ai-ui:view`
+event (or read `window.aiUiView`) to follow the menus.
 
 ## Rules that are easy to break
 
 - `serve` builds only the panes listed in `WEBAPP_PANES`, and exits naming any listed slug that is not a key of its
   mapping.
 - `RunsTab.kinds` are values of `meta.json`'s `kind`; a run whose kind no tab lists is in the DB but on no tab.
+- A figure whose slug no topic of its tab lists shows under no topic; a tab without topics gets one Results entry
+  showing every figure.
+- `config_documents` names documents written from `json_documents` / `yaml_documents`; keep those keys out of the
+  reader's `row` so the table and Configuration do not repeat each other.
 - Ingest skips files whose mtime is unchanged; a reader change shows only after the files are touched or the DB is
   rebuilt.
 - `WEBAPP_HOST` defaults to loopback; reach it through an SSH tunnel rather than binding a public address.

@@ -15,20 +15,30 @@ type Row = Record<string, unknown>;
 // {family: {metric: [[step, value], ...]}}
 type Metrics = Record<string, Record<string, [number, number][]>>;
 
+// {document name: parsed document}
+type Documents = Record<string, unknown>;
+
+type Topic = Caption & { plots: string[] };
+
+type Tab = Caption & { topics: Topic[] };
+
 interface RunsIndex {
   columns: string[];
   rows: Row[];
   n: number;
   root: string;
-  kinds: Caption[];
   selected: string[];
   kind: string;
-  tabs: Caption[];
+  tabs: Tab[];
 }
 
 // The pane's blueprint is mounted under its slug, so every request is relative
 // to this base rather than to the page root.
 const API_BASE = "runs/";
+const PANE_SLUG = "runs";
+// The Details item that shows the selected runs' configuration documents
+// (runs_pane.py CONFIG_ITEM); every other runs item is a results topic.
+const CONFIG_ITEM = "configuration";
 
 // Runs in these states never change again; any other status is treated as
 // live and its figures are re-fetched while it stays checked.
@@ -92,6 +102,34 @@ function metricsHtml(metrics: Metrics | null): string {
   return html;
 }
 
+// --- configuration view ----------------------------------------------------
+// One row per document key ("name.key"), one column per run; rows whose values
+// differ between the runs are marked.
+function configHtml(runs: [string, Documents][]): string {
+  if (runs.length === 0) return '<p class="muted">select runs in the table to compare their configuration.</p>';
+  const show = (v: unknown) => (v !== null && typeof v === "object") ? JSON.stringify(v) : v;
+  const flat = runs.map(([, docs]) => {
+    const out: Record<string, unknown> = {};
+    for (const [name, doc] of Object.entries(docs)) {
+      if (doc !== null && typeof doc === "object" && !Array.isArray(doc)) {
+        for (const [key, value] of Object.entries(doc)) out[name + "." + key] = show(value);
+      } else {
+        out[name] = show(doc);
+      }
+    }
+    return out;
+  });
+  const keys = [...new Set(flat.flatMap(f => Object.keys(f)))].sort();
+  if (keys.length === 0) return '<p class="muted">the selected runs have no configuration documents.</p>';
+  const head = "<tr><th>parameter</th>" + runs.map(([label]) => `<th>${esc(label)}</th>`).join("") + "</tr>";
+  const body = keys.map(k => {
+    const values = flat.map(f => esc(f[k]));
+    const cls = runs.length > 1 && new Set(values).size > 1 ? ' class="differs"' : "";
+    return `<tr${cls}><td>${esc(k)}</td>` + values.map(v => `<td>${v}</td>`).join("") + "</tr>";
+  }).join("");
+  return `<div class="tablewrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+
 // --- API client ------------------------------------------------------------
 class DashboardClient {
   async index(kind: string): Promise<RunsIndex> {
@@ -108,6 +146,11 @@ class DashboardClient {
     const res = await fetch(API_BASE + "api/runs/" + encodeURIComponent(id) + "/metrics");
     if (!res.ok) return null;
     return (await res.json()).metrics;  // {family: {metric: [[step, value], ...]}}
+  }
+  async documents(id: string): Promise<Documents | null> {
+    const res = await fetch(API_BASE + "api/runs/" + encodeURIComponent(id) + "/documents");
+    if (!res.ok) return null;
+    return (await res.json()).documents;  // {name: document}
   }
   async deleteRun(id: string): Promise<boolean> {
     const res = await fetch(API_BASE + "api/runs/" + encodeURIComponent(id), { method: "DELETE" });
@@ -127,16 +170,18 @@ class DashboardClient {
 class Dashboard {
   client: DashboardClient;
   kind: string;
-  tabSlugs: string;
+  item: string;
+  shown: boolean;
   columns: string[];
   rows: Row[];
-  kinds: Caption[];
+  topics: Record<string, Set<string>>;
   checked: Set<string>;
   loaded: Set<string>;
   loadedStatus: Record<string, string>;
+  documents: Record<string, Documents | null>;
+  configHtml: string;
   refreshCount: number;
   selectionSynced: boolean;
-  kindState: Record<string, boolean>;
   sortCol: string | null;
   sortDir: number;
   filter: string;
@@ -145,26 +190,29 @@ class Dashboard {
   thead: HTMLTableSectionElement;
   tbody: HTMLTableSectionElement;
   controlsEl: HTMLElement;
+  configEl: HTMLElement;
   sectionsEl: HTMLElement;
   sourceEl: HTMLElement;
   statusEl: HTMLElement;
-  tabsEl: HTMLElement;
 
   constructor() {
     this.client = new DashboardClient();
-    // Active tab, restored across page reloads; the server resolves an unknown
-    // or empty value to its first tab and returns the tab list with the data.
-    this.kind = localStorage.getItem("dash.tab") || "";
-    this.tabSlugs = "";
+    // The shell's menus pick the tab (Modules) and what the detail area shows
+    // (Details); the server resolves an unknown or empty tab to its first one.
+    const view = window.aiUiView;
+    this.kind = view ? view.module : "";
+    this.item = view && view.pane === PANE_SLUG ? view.item : CONFIG_ITEM;
+    this.shown = !!view && view.pane === PANE_SLUG;
     this.columns = [];
     this.rows = [];
-    this.kinds = [];               // [{slug, caption}]
+    this.topics = {};              // topic slug -> its figure slugs, for this tab
     this.checked = new Set();      // selected run ids (shown + delete targets)
     this.loaded = new Set();       // run ids whose sections are in the DOM
     this.loadedStatus = {};        // run id -> status seen when its section was last drawn
+    this.documents = {};           // run id -> its configuration documents, fetched once
+    this.configHtml = "";          // the configuration table last drawn
     this.refreshCount = 0;         // table refreshes so far; paces the figure re-fetch
     this.selectionSynced = false;  // restore backend selection once, on first load
-    this.kindState = {};           // slug -> visible?
     this.sortCol = null;
     this.sortDir = 1;
     this.filter = "";
@@ -174,10 +222,10 @@ class Dashboard {
     this.thead = document.querySelector<HTMLTableSectionElement>("#runs thead")!;
     this.tbody = document.querySelector<HTMLTableSectionElement>("#runs tbody")!;
     this.controlsEl = document.getElementById("controls")!;
+    this.configEl = document.getElementById("config")!;
     this.sectionsEl = document.getElementById("sections")!;
     this.sourceEl = document.getElementById("source")!;
     this.statusEl = document.getElementById("status")!;
-    this.tabsEl = document.getElementById("tabs")!;
 
     document.getElementById("search")!.addEventListener("input", e => {
       this.filter = (e.target as HTMLInputElement).value.toLowerCase();
@@ -185,7 +233,7 @@ class Dashboard {
     });
     document.getElementById("live")!.addEventListener("change", e =>
       this._setLive((e.target as HTMLInputElement).checked));
-    document.getElementById("tabs")!.addEventListener("click", e => this._onTabClick(e));
+    document.addEventListener("ai-ui:view", e => this._onView((e as CustomEvent<AiUiView>).detail));
     this.thead.addEventListener("click", e => this._onHeaderClick(e));
     this.tbody.addEventListener("click", e => this._onBodyClick(e));
     this.controlsEl.addEventListener("click", e => this._onControlsClick(e));
@@ -193,33 +241,25 @@ class Dashboard {
     this.refresh().then(() => this._setLive(true));
   }
 
-  // -- tabs -----------------------------------------------------------------
-  _renderTabs(tabs: Caption[], active: string): void {
-    const slugs = tabs.map(t => t["slug"]).join("|");
-    if (slugs !== this.tabSlugs) {
-      this.tabSlugs = slugs;
-      this.tabsEl.innerHTML = tabs.map(t =>
-        `<button data-tab="${esc(t["slug"])}">${esc(t["caption"])}</button>`).join("");
+  // -- menus ----------------------------------------------------------------
+  _onView(view: AiUiView): void {
+    if (view.module !== this.kind) {
+      this.kind = view.module;
+      // Per-tab run state: sections/columns differ between kinds.
+      this.sectionsEl.innerHTML = "";
+      this.loaded.clear();
+      this.loadedStatus = {};
+      this.controlsBuilt = false;
+      this.sortCol = null;
+      this.shown = view.pane === PANE_SLUG;
+      if (this.shown) this.item = view.item;
+      void this.refresh();
+      return;
     }
-    this.tabsEl.querySelectorAll<HTMLElement>("button[data-tab]").forEach(b =>
-      b.classList.toggle("active", b.dataset.tab === active));
-  }
-
-  _onTabClick(e: MouseEvent): void {
-    const btn = (e.target as Element).closest<HTMLElement>("button[data-tab]");
-    if (!btn || btn.dataset.tab === this.kind) return;
-    document.querySelectorAll("#tabs button").forEach(b =>
-      b.classList.toggle("active", b === btn));
-    this.kind = btn.dataset.tab!;
-    localStorage.setItem("dash.tab", this.kind);
-    // Per-tab run state: sections/columns/plot kinds differ between kinds.
-    this.sectionsEl.innerHTML = "";
-    this.loaded.clear();
-    this.loadedStatus = {};
-    this.kindState = {};
-    this.controlsBuilt = false;
-    this.sortCol = null;
-    void this.refresh();
+    this.shown = view.pane === PANE_SLUG;
+    if (!this.shown) return;
+    this.item = view.item;
+    void this._syncDetail();
   }
 
   // -- data -----------------------------------------------------------------
@@ -231,17 +271,12 @@ class Dashboard {
       this.statusEl.textContent = "error: " + (err as Error).message;
       return;
     }
-    if (data.kind && data.kind !== this.kind) {
-      this.kind = data.kind;
-      localStorage.setItem("dash.tab", this.kind);
-    }
-    this._renderTabs(data.tabs || [], this.kind);
+    if (data.kind) this.kind = data.kind;
+    const tab = (data.tabs || []).find(t => t["slug"] === this.kind);
+    this.topics = {};
+    for (const topic of (tab ? tab.topics : [])) this.topics[topic["slug"]] = new Set(topic.plots);
     this.columns = data.columns;
     this.rows = data.rows;
-    // A figure kind that first appears later (a run reaching eval) needs its toggle.
-    const slugs = (kinds: Caption[]) => kinds.map(k => k["slug"]).join("|");
-    const kindsChanged = this.controlsBuilt && slugs(data.kinds || []) !== slugs(this.kinds);
-    this.kinds = data.kinds || [];
     // Restore the backend-persisted selection once, on the first load (survives a
     // browser refresh; the periodic refresh must not clobber the live selection).
     if (!this.selectionSynced) {
@@ -250,15 +285,25 @@ class Dashboard {
     }
     this.sourceEl.textContent = data.n + " run(s) · source: " + data.root;
     this.statusEl.textContent = "updated " + new Date().toLocaleTimeString();
-    if (!this.controlsBuilt || kindsChanged) { this._buildControls(); this.controlsBuilt = true; }
+    if (!this.controlsBuilt) { this._buildControls(); this.controlsBuilt = true; }
     this._renderHead();
     this._renderBody();
+    this.refreshCount += 1;
+    await this._syncDetail(this.refreshCount % PLOT_REFRESH_EVERY === 0);
+  }
+
+  // Fill the detail area for the picked item; nothing while another pane holds it.
+  async _syncDetail(pollLive = false): Promise<void> {
+    if (!this.shown) return;
+    const config = this.item === CONFIG_ITEM;
+    this.configEl.hidden = !config;
+    this.sectionsEl.hidden = config;
+    if (config) { await this._renderConfig(); return; }
+    this.sectionsEl.querySelectorAll<HTMLElement>("section").forEach(sec => this._applyTopic(sec));
     // Sections for checked runs of this tab (first load + after a tab switch).
     // A drawn section is re-fetched when the run's status changed since it was
     // drawn (its final figures, once) and, every PLOT_REFRESH_EVERY refreshes,
     // while the run is still live (its figures grow as it trains).
-    this.refreshCount += 1;
-    const pollLive = this.refreshCount % PLOT_REFRESH_EVERY === 0;
     for (const r of this.rows) {
       const id = String(r["run_id"]);
       if (!this.checked.has(id)) continue;
@@ -267,6 +312,33 @@ class Dashboard {
       const live = !FINAL_STATUSES.has(status.toLowerCase());
       if (status !== this.loadedStatus[id] || (pollLive && live)) await this._reloadSection(id);
     }
+  }
+
+  // The checked runs of this tab, one column each, in table order.
+  async _renderConfig(): Promise<void> {
+    const runs: [string, Documents][] = [];
+    for (const r of this.rows) {
+      const id = String(r["run_id"]);
+      if (!this.checked.has(id)) continue;
+      if (!(id in this.documents)) this.documents[id] = await this.client.documents(id);
+      runs.push([String(r["label"] || id), this.documents[id] || {}]);
+    }
+    // Redraw only on a change, so the periodic refresh keeps the table's scroll position.
+    const html = configHtml(runs);
+    if (html !== this.configHtml) { this.configHtml = html; this.configEl.innerHTML = html; }
+  }
+
+  // Show only the picked topic's figures, or all of them for an item that is no topic (a tab without topics);
+  // a run drawn from its metrics shows under every topic.
+  _applyTopic(sec: HTMLElement): void {
+    const plots = this.topics[this.item];
+    let any = false;
+    sec.querySelectorAll<HTMLElement>("figure[data-plot]").forEach(f => {
+      f.hidden = !!plots && !plots.has(f.dataset.plot!);
+      any = any || !f.hidden;
+    });
+    const none = sec.querySelector<HTMLElement>(".no-topic");
+    if (none) none.hidden = any;
   }
 
   _setLive(on: boolean): void {
@@ -281,43 +353,19 @@ class Dashboard {
 
   // -- controls -------------------------------------------------------------
   _buildControls(): void {
-    // Per-tab visibility, restored across page reloads; default visible.
-    const saved: Record<string, boolean> = JSON.parse(localStorage.getItem("dash.kinds." + this.kind) || "{}");
-    for (const k of this.kinds) this.kindState[k["slug"]] = saved[k["slug"]] !== false;
-    const kindBoxes = this.kinds.map(k =>
-      `<label><input type="checkbox" data-kind="${esc(k["slug"])}" ${this.kindState[k["slug"]] ? "checked" : ""}> ${esc(k["caption"])}</label>`
-    ).join("") || '<span class="muted">no plots</span>';
     this.controlsEl.innerHTML =
       '<fieldset><legend>Runs</legend>' +
       '<button type="button" data-runs="all">All</button> ' +
       '<button type="button" data-runs="none">None</button> ' +
       '<button type="button" class="danger" data-runs-delete>Delete</button>' +
       '<span class="muted"> (select in the table; Delete removes the selected runs)</span>' +
-      '</fieldset>' +
-      '<fieldset><legend>Show graphs</legend>' +
-      '<button type="button" data-kinds="all">All</button> ' +
-      '<button type="button" data-kinds="none">None</button> ' +
-      kindBoxes + '</fieldset>';
+      '</fieldset>';
   }
 
   _onControlsClick(e: MouseEvent): void {
     const t = e.target as HTMLInputElement;
     if (t.dataset.runsDelete !== undefined) { void this._deleteSelected(); return; }
-    if (t.dataset.runs) { void this._setAllRuns(t.dataset.runs === "all"); return; }
-    if (t.dataset.kinds) {
-      const on = t.dataset.kinds === "all";
-      this.controlsEl.querySelectorAll<HTMLInputElement>("input[data-kind]").forEach(cb => {
-        cb.checked = on; this._setKind(cb.dataset.kind!, on);
-      });
-      return;
-    }
-    if (t.dataset.kind !== undefined) this._setKind(t.dataset.kind, t.checked);
-  }
-
-  _setKind(slug: string, on: boolean): void {
-    this.kindState[slug] = on;
-    localStorage.setItem("dash.kinds." + this.kind, JSON.stringify(this.kindState));
-    this.sectionsEl.querySelectorAll<HTMLElement>(".plot-" + slug).forEach(f => { f.hidden = !on; });
+    if (t.dataset.runs) { void this._setAllRuns(t.dataset.runs === "all"); }
   }
 
   // -- table ----------------------------------------------------------------
@@ -402,13 +450,15 @@ class Dashboard {
 
   // -- sections -------------------------------------------------------------
   async _toggleRun(id: string, on: boolean): Promise<void> {
-    if (on) {
-      this.checked.add(id);
-      await this._ensureSection(id);
+    if (on) this.checked.add(id);
+    else this.checked.delete(id);
+    if (this.shown && this.item === CONFIG_ITEM) {
+      await this._renderConfig();
+    } else if (on) {
+      if (this.shown) await this._ensureSection(id);
       const sec = document.getElementById("run-" + id);
       if (sec) sec.hidden = false;
     } else {
-      this.checked.delete(id);
       const sec = document.getElementById("run-" + id);
       if (sec) sec.hidden = true;
     }
@@ -461,18 +511,15 @@ class Dashboard {
       // No project figures: draw the run's stored metrics instead.
       html += metricsHtml(await this.client.metrics(id));
     } else {
+      html += '<p class="muted no-topic">no graphs for this topic.</p>';
       for (const p of plots) {
-        html += `<figure class="plot-${esc(p["slug"])}"><figcaption>${esc(p["caption"])}</figcaption>` +
+        html += `<figure data-plot="${esc(p["slug"])}"><figcaption>${esc(p["caption"])}</figcaption>` +
                 `<img loading="lazy" alt="${esc(p["caption"])}" src="data:image/png;base64,${p["png"]}"></figure>`;
       }
     }
     sec.innerHTML = html;
     this.loadedStatus[id] = String(status || "");
-    // apply current per-kind visibility to the freshly added figures
-    sec.querySelectorAll("figure").forEach(f => {
-      const slug = (f.className.match(/plot-(\S+)/) || [])[1];
-      if (slug && this.kindState[slug] === false) f.hidden = true;
-    });
+    this._applyTopic(sec);
   }
 
   async _deleteSelected(): Promise<void> {
@@ -489,6 +536,7 @@ class Dashboard {
         this.checked.delete(id);
         this.loaded.delete(id);
         delete this.loadedStatus[id];
+        delete this.documents[id];
         const sec = document.getElementById("run-" + id);
         if (sec) sec.remove();
       } else {
@@ -501,7 +549,6 @@ class Dashboard {
   }
 }
 
-// The shell calls this the first time the runs tab is shown, so the
-// table load and the refresh timer start with the pane rather than the page.
+// The table sits in the shell's top area, so the shell calls this at page load.
 window.aiUiPanes = window.aiUiPanes || {};
 window.aiUiPanes["runs"] = () => new Dashboard();

@@ -1,39 +1,92 @@
 "use strict";
 // The pane-initialiser registry. A pane's script assigns its initialiser as
 // window.aiUiPanes["<slug>"]; the shell calls it once, the first time that pane
-// is shown. The guard is idempotent, so pane scripts and the shell may set it
-// up in either order.
+// is shown, or at load for a pane with markup in the top area. The guard is
+// idempotent, so pane scripts and the shell may set it up in either order.
 window.aiUiPanes = window.aiUiPanes || {};
-// Tab switching and first-show pane initialisation.
+window.aiUiView = null;
+// The Modules and Details menus, the detail area, and first-show pane initialisation.
 class Shell {
     initialised;
-    tabs;
+    modules;
+    details;
     panes;
+    view;
     constructor() {
         this.initialised = new Set();
-        this.tabs = document.getElementById("shell-tabs");
+        this.modules = document.getElementById("shell-modules");
+        this.details = document.getElementById("shell-details");
         this.panes = document.getElementById("shell-panes");
-        this.tabs.addEventListener("click", e => this._onTabClick(e));
-        const saved = localStorage.getItem("shell.pane");
-        const first = this.tabs.querySelector("button[data-pane]");
-        this._show(this._known(saved) ? saved : (first ? first.dataset.pane : null));
+        this.modules.addEventListener("click", e => this._onModuleClick(e));
+        this.details.addEventListener("click", e => this._onDetailClick(e));
+        const saved = this._saved();
+        const first = this.modules.querySelector("button[data-module]");
+        const module = saved && this._moduleButton(saved.module) ? saved.module : (first ? first.dataset.module : "");
+        this.view = { module: module, pane: saved ? saved.pane : "", item: saved ? saved.item : "" };
+        this._show();
     }
-    _known(slug) {
-        return !!(slug && this.tabs.querySelector('button[data-pane="' + CSS.escape(slug) + '"]'));
+    _saved() {
+        try {
+            return JSON.parse(localStorage.getItem("shell.view") || "null");
+        }
+        catch {
+            return null;
+        }
     }
-    _onTabClick(e) {
-        const btn = e.target.closest("button[data-pane]");
-        if (btn)
-            this._show(btn.dataset.pane);
+    _moduleButton(slug) {
+        return this.modules.querySelector('button[data-module="' + CSS.escape(slug) + '"]');
     }
-    _show(slug) {
-        if (!slug)
+    // A Details entry belongs to the module when it names no modules or lists this one.
+    _fits(el) {
+        const modules = el.dataset.modules;
+        return modules === undefined || !this.view.module || modules.split(" ").includes(this.view.module);
+    }
+    _onModuleClick(e) {
+        const btn = e.target.closest("button[data-module]");
+        if (!btn)
             return;
-        localStorage.setItem("shell.pane", slug);
-        this.tabs.querySelectorAll("button[data-pane]").forEach(b => b.classList.toggle("active", b.dataset.pane === slug));
-        this.panes.querySelectorAll("section[data-pane]").forEach(s => {
-            s.hidden = s.dataset.pane !== slug;
+        this.view.module = btn.dataset.module;
+        this._show();
+    }
+    _onDetailClick(e) {
+        const btn = e.target.closest("button[data-item]");
+        if (!btn)
+            return;
+        this.view.pane = btn.dataset.pane;
+        this.view.item = btn.dataset.item;
+        this._show();
+    }
+    // Apply this.view: mark the module, hide the Details entries of other modules, fall back to the first entry left
+    // when the picked one is gone, show its pane, and tell the panes.
+    _show() {
+        this.modules.querySelectorAll("button[data-module]").forEach(b => b.classList.toggle("active", b.dataset.module === this.view.module));
+        const buttons = Array.from(this.details.querySelectorAll("button[data-item]"));
+        buttons.forEach(b => {
+            const group = b.parentElement.closest(".shell-group");
+            b.hidden = !this._fits(b) || (group !== null && !this._fits(group));
         });
+        this.details.querySelectorAll(".shell-group").forEach(g => {
+            g.hidden = !g.querySelector("button[data-item]:not([hidden])");
+        });
+        const visible = buttons.filter(b => !b.hidden);
+        const picked = visible.find(b => b.dataset.pane === this.view.pane && b.dataset.item === this.view.item)
+            || visible[0];
+        if (!picked)
+            return;
+        this.view.pane = picked.dataset.pane;
+        this.view.item = picked.dataset.item;
+        buttons.forEach(b => b.classList.toggle("active", b === picked));
+        this.panes.querySelectorAll("section[data-pane]").forEach(s => {
+            s.hidden = s.dataset.pane !== this.view.pane;
+        });
+        localStorage.setItem("shell.view", JSON.stringify(this.view));
+        window.aiUiView = { ...this.view };
+        // Panes with markup in the top area are on screen whatever is picked.
+        document.querySelectorAll("#shell-top > section[data-pane]").forEach(s => this._init(s.dataset.pane));
+        this._init(this.view.pane);
+        document.dispatchEvent(new CustomEvent("ai-ui:view", { detail: { ...this.view } }));
+    }
+    _init(slug) {
         if (this.initialised.has(slug))
             return;
         this.initialised.add(slug);

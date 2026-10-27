@@ -12,6 +12,8 @@ from pathlib import Path
 
 from flask import Blueprint
 
+from .menu_item import MenuItem
+
 
 class WebPane(ABC):
     """One independent surface hosted by the shell."""
@@ -42,6 +44,18 @@ class WebPane(ABC):
         fragment carries markup only.
         """
         return []
+
+    def top_fragment(self) -> Path | None:
+        """Markup the shell keeps in the top area whatever detail is shown; default none."""
+        return None
+
+    def modules(self) -> tuple[MenuItem, ...]:
+        """Entries the pane adds to the Modules menu; default none."""
+        return ()
+
+    def details(self) -> tuple[MenuItem, ...]:
+        """Entries the pane adds to the Details menu; default one entry for the whole pane."""
+        return (MenuItem(self.slug, self.title),)
 
     def start(self) -> None:
         """Start the background threads the pane keeps; default is none."""

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from flask import Blueprint, Flask, Response, send_from_directory
 
+from .menu_item import MenuItem
 from .web_pane import WebPane
 from .webapp_config import WebAppConfig
 
@@ -20,7 +21,9 @@ logger = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).parent / "web_static"
 SHELL_ASSET_DIR = STATIC_DIR / "shell"
 ASSETS_MARKER = "<!-- assets -->"
-TABS_MARKER = "<!-- tabs -->"
+MODULES_MARKER = "<!-- modules -->"
+DETAILS_MARKER = "<!-- details -->"
+TOP_MARKER = "<!-- top -->"
 PANES_MARKER = "<!-- panes -->"
 TITLE_MARKER = "<!-- title -->"
 DEFAULT_STATIC_URL_PATH = "/static"
@@ -53,14 +56,22 @@ class WebApp:
         return self._app
 
     def _compose(self) -> str:
-        """The single document: shell markup with asset tags, tabs and fragments."""
+        """The single document: shell markup with asset tags, the two menus and the fragments."""
         assets = "".join(
             self._asset_tags(pane, blueprint) for pane, blueprint in self._blueprints
         )
-        tabs = "".join(
-            f'<button type="button" data-pane="{escape(pane.slug)}">'
-            f'{escape(pane.title)}</button>'
-            for pane in self._panes
+        modules = "".join(
+            f'<button type="button" data-module="{escape(item.slug)}">{escape(item.caption)}</button>'
+            for pane in self._panes for item in pane.modules()
+        )
+        if modules:
+            modules = "<h2>Modules</h2>" + modules
+        details = "<h2>Details</h2>" + "".join(
+            self._detail(pane.slug, item) for pane in self._panes for item in pane.details()
+        )
+        top = "".join(
+            f'<section data-pane="{escape(pane.slug)}">{fragment.read_text(encoding="utf-8")}</section>'
+            for pane in self._panes if (fragment := pane.top_fragment()) is not None
         )
         sections = "".join(
             f'<section data-pane="{escape(pane.slug)}" hidden>'
@@ -69,9 +80,21 @@ class WebApp:
         )
         markup = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
         return (markup.replace(ASSETS_MARKER, assets)
-                .replace(TABS_MARKER, tabs)
+                .replace(MODULES_MARKER, modules)
+                .replace(DETAILS_MARKER, details)
+                .replace(TOP_MARKER, top)
                 .replace(PANES_MARKER, sections)
                 .replace(TITLE_MARKER, escape(self._config.WEBAPP_TITLE)))
+
+    @classmethod
+    def _detail(cls, pane: str, item: MenuItem) -> str:
+        """One Details entry: a button, or a captioned group of its children's buttons."""
+        modules = "" if item.modules is None else f' data-modules="{escape(" ".join(item.modules))}"'
+        if item.children:
+            return (f'<div class="shell-group"{modules}><span>{escape(item.caption)}</span>'
+                    + "".join(cls._detail(pane, child) for child in item.children) + "</div>")
+        return (f'<button type="button" data-pane="{escape(pane)}" data-item="{escape(item.slug)}"{modules}>'
+                f'{escape(item.caption)}</button>')
 
     @staticmethod
     def _asset_tags(pane: WebPane, blueprint: Blueprint) -> str:
