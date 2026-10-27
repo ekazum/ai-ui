@@ -37,6 +37,12 @@ A record is a directory under the runs root with a `meta.json` (`run_id`, `kind`
 Its reader (`examples/minimal/app.py`, about 25 lines) supplies no figures, so the pane draws each run from its
 metrics.
 
+## Scripts
+
+The panes' browser scripts are TypeScript under `ts/`, whose folders mirror `src/ai_ui/`. `tsc -p ts` (TypeScript 7,
+run from the repo root) compiles each one to the `.js` the shell serves; the compiled files are committed, so
+installing and serving need no Node.
+
 `AGENTS.md` lists the signatures, the assembly order and the rules to keep.
 
 ## License

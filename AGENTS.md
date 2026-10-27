@@ -4,7 +4,7 @@ ai-ui gives a web shell that hosts independent panes in one Flask service, and a
 records from a SQLite runs DB it keeps current by rescanning the record directories. A project adds a dashboard by
 describing its records to the runs pane, or by writing its own pane.
 
-Install: `pip install "ai-ui @ git+https://github.com/ekazum/ai-ui.git@v0.4.3"`.
+Install: `pip install "ai-ui @ git+https://github.com/ekazum/ai-ui.git@v0.5.0"`.
 
 ## What ai-ui provides, what the project writes
 
@@ -69,6 +69,8 @@ register its script as `window.aiUiPanes[slug]`; add its builder to the `serve` 
 - Config files reject unknown keys; the YAML and the schema change together.
 - Relative paths in the YAML resolve against the working directory.
 - `DELETE api/runs/<run_id>` removes the run's directory as well as its rows.
+- The served `.js` files are `tsc` output: edit the `.ts` under `ts/` (its folders mirror `src/ai_ui/`), run
+  `tsc -p ts` from the repo root, and commit both. `ts/globals.d.ts` types `window.aiUiPanes`.
 
 ## Examples
 

@@ -1,0 +1,15 @@
+{
+  // TypeScript sources of the panes' scripts. The folders under ts/ mirror src/ai_ui/, so each file compiles
+  // to the static path the shell already serves. Build from the repo root: tsc -p ts
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "strict": true,
+    "noEmitOnError": true,
+    "newLine": "lf",
+    "types": [],
+    "rootDir": ".",
+    "outDir": "../src/ai_ui"
+  },
+  "include": ["**/*.ts"]
+}
