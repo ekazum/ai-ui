@@ -97,7 +97,7 @@ function configHtml(runs) {
         const cls = runs.length > 1 && new Set(values).size > 1 ? ' class="differs"' : "";
         return `<tr${cls}><td>${esc(k)}</td>` + values.map(v => `<td>${v}</td>`).join("") + "</tr>";
     }).join("");
-    return `<div class="tablewrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+    return `<div class="configwrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
 }
 // --- API client ------------------------------------------------------------
 class DashboardClient {
