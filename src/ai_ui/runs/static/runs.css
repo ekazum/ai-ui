@@ -33,5 +33,9 @@
 .runs-pane figure.curve line.axis { stroke:#bbb; stroke-width:1; }
 .runs-pane figure.curve text { font-size:9px; fill:#666; }
 .runs-pane table.scalars td { text-align:left; }
-.runs-pane #config table td:first-child { font-family:ui-monospace, monospace; }
+/* The configuration table is as tall and as wide as its content: no height cap,
+   no scrollbox, and long values wrap instead of widening the table. */
+.runs-pane #config .tablewrap { display:inline-block; max-width:100%; max-height:none; overflow-x:auto; }
+.runs-pane #config td { white-space:normal; overflow-wrap:anywhere; max-width:32rem; text-align:left; }
+.runs-pane #config table td:first-child { font-family:ui-monospace, monospace; white-space:nowrap; }
 .runs-pane #config tr.differs td { background:#fff6d6; }
