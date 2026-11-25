@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
-from .runs_spec import RunsSpec
+from .runs_spec import RunsSpec, RunsTab
 
 logger = logging.getLogger(__name__)
 
@@ -47,20 +47,27 @@ class RunsStore:
             con.close()
 
     def index(self, kind: str) -> dict[str, Any]:
-        """Table payload for one tab + its plot kinds, the tab list and the live selection."""
-        tab_kinds = self._spec.tab(kind).kinds
-        marks = ",".join("?" * len(tab_kinds))
+        """Table payload for one tab + its plot kinds, the tab list and the live selection.
+
+        ``columns`` are the run table's; each of this tab's topics carries the columns it claims,
+        a table column included, and ``other_columns`` are those neither the table nor a topic shows.
+        """
+        tab = self._spec.tab(kind)
+        marks = ",".join("?" * len(tab.kinds))
         with self._connect() as db:
-            rows = self._rows(db, tab_kinds)
+            rows = self._rows(db, tab.kinds)
             kinds = [{"slug": s, "caption": c} for s, c in db.execute(
                 "SELECT slug, caption FROM plots JOIN runs USING (run_id) "
                 f"WHERE runs.kind IN ({marks}) GROUP BY slug, caption ORDER BY MIN(ord)",
-                tab_kinds)]
-        return {"columns": self._columns(rows), "rows": rows, "n": len(rows),
+                tab.kinds)]
+        columns = self._columns(rows)
+        claimed, other = self._topic_columns(tab, rows, columns)
+        return {"columns": columns, "other_columns": other, "rows": rows, "n": len(rows),
                 "root": str(self._root), "kinds": kinds,
-                "selected": self.get_selection(), "kind": kind,
+                "selected": self.get_selection(), "kind": tab.slug,
                 "tabs": [{"slug": t.slug, "caption": t.caption,
-                          "topics": [{"slug": p.slug, "caption": p.caption, "plots": list(p.plots)}
+                          "topics": [{"slug": p.slug, "caption": p.caption, "plots": list(p.plots),
+                                      "columns": claimed.get(p.slug, []) if t is tab else []}
                                      for p in t.topics]}
                          for t in self._spec.tabs]}
 
@@ -81,10 +88,24 @@ class RunsStore:
         return out
 
     def _columns(self, rows: list[dict[str, Any]]) -> list[str]:
-        """Union of row keys: leading columns first, the rest alphabetical."""
+        """The run table's columns: the spec's table columns the rows have, or every row key, alphabetical."""
         seen = {k for row in rows for k in row}
-        lead = [c for c in self._spec.leading_columns if c in seen]
-        return lead + sorted(seen - set(lead))
+        if self._spec.table_columns:
+            return [c for c in self._spec.table_columns if c in seen]
+        return sorted(seen)
+
+    @staticmethod
+    def _topic_columns(tab: RunsTab, rows: list[dict[str, Any]],
+                       shown: list[str]) -> tuple[dict[str, list[str]], list[str]]:
+        """Per topic slug the row keys it claims first, a table column included; then those neither shows."""
+        seen = sorted({k for row in rows for k in row})
+        taken: set[str] = set()
+        claimed: dict[str, list[str]] = {}
+        for topic in tab.topics:
+            mine = [c for c in seen if c not in taken and topic.claims(c)]
+            taken.update(mine)
+            claimed[topic.slug] = topic.ordered(mine)
+        return claimed, [c for c in seen if c not in taken and c not in shown]
 
     def plots(self, run_id: str) -> list[dict[str, str]] | None:
         """Stored figures for one run, or ``None`` if the run is unknown."""

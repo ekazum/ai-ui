@@ -6,6 +6,10 @@ const PANE_SLUG = "runs";
 // The Details item that shows the selected runs' configuration documents
 // (runs_pane.py CONFIG_ITEM); every other runs item is a results topic.
 const CONFIG_ITEM = "configuration";
+// The Details item of a tab with topics that shows what no topic claims (runs_pane.py OTHER_ITEM), and the
+// one of a tab without topics that shows everything (runs_pane.py ALL_ITEM).
+const OTHER_ITEM = "other";
+const ALL_ITEM = "all";
 // Runs in these states never change again; any other status is treated as
 // live and its figures are re-fetched while it stays checked.
 const FINAL_STATUSES = new Set(["completed", "failed", "submit_failed",
@@ -68,9 +72,28 @@ function metricsHtml(metrics) {
     }
     return html;
 }
+// --- run comparison --------------------------------------------------------
+// One row per key, one column per run (labels[i] heads values[i]); rows whose
+// values differ between the runs are marked.
+function compareTable(keyHead, keys, labels, values) {
+    const head = `<tr><th>${esc(keyHead)}</th>` + labels.map(l => `<th>${esc(l)}</th>`).join("") + "</tr>";
+    const body = keys.map(k => {
+        const cells = values.map(v => esc(v[k]));
+        const cls = labels.length > 1 && new Set(cells).size > 1 ? ' class="differs"' : "";
+        return `<tr${cls}><td>${esc(k)}</td>` + cells.map(c => `<td>${c}</td>`).join("") + "</tr>";
+    }).join("");
+    return `<div class="configwrap"><table class="compare"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+// A topic's columns for the checked runs, above its figures; nothing when the topic claims no column.
+function topicMetricsHtml(columns, rows) {
+    if (columns.length === 0)
+        return "";
+    if (rows.length === 0)
+        return '<p class="muted">select runs in the table to compare their metrics.</p>';
+    return compareTable("metric", columns, rows.map(r => String(r["label"] || r["run_id"])), rows);
+}
 // --- configuration view ----------------------------------------------------
-// One row per document key ("name.key"), one column per run; rows whose values
-// differ between the runs are marked.
+// One row per document key ("name.key"), one column per run.
 function configHtml(runs) {
     if (runs.length === 0)
         return '<p class="muted">select runs in the table to compare their configuration.</p>';
@@ -91,13 +114,7 @@ function configHtml(runs) {
     const keys = [...new Set(flat.flatMap(f => Object.keys(f)))].sort();
     if (keys.length === 0)
         return '<p class="muted">the selected runs have no configuration documents.</p>';
-    const head = "<tr><th>parameter</th>" + runs.map(([label]) => `<th>${esc(label)}</th>`).join("") + "</tr>";
-    const body = keys.map(k => {
-        const values = flat.map(f => esc(f[k]));
-        const cls = runs.length > 1 && new Set(values).size > 1 ? ' class="differs"' : "";
-        return `<tr${cls}><td>${esc(k)}</td>` + values.map(v => `<td>${v}</td>`).join("") + "</tr>";
-    }).join("");
-    return `<div class="configwrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+    return compareTable("parameter", keys, runs.map(([label]) => label), flat);
 }
 // --- API client ------------------------------------------------------------
 class DashboardClient {
@@ -148,6 +165,10 @@ class Dashboard {
     columns;
     rows;
     topics;
+    topicColumns;
+    otherColumns;
+    topicPlots;
+    topicMetricsHtml;
     checked;
     loaded;
     loadedStatus;
@@ -164,6 +185,7 @@ class Dashboard {
     tbody;
     controlsEl;
     configEl;
+    topicMetricsEl;
     sectionsEl;
     sourceEl;
     statusEl;
@@ -178,6 +200,10 @@ class Dashboard {
         this.columns = [];
         this.rows = [];
         this.topics = {}; // topic slug -> its figure slugs, for this tab
+        this.topicColumns = {}; // topic slug -> the table-row columns it shows, for this tab
+        this.otherColumns = []; // the columns neither the table nor a topic shows
+        this.topicPlots = new Set(); // every figure slug some topic of this tab shows
+        this.topicMetricsHtml = ""; // the topic metrics table last drawn
         this.checked = new Set(); // selected run ids (shown + delete targets)
         this.loaded = new Set(); // run ids whose sections are in the DOM
         this.loadedStatus = {}; // run id -> status seen when its section was last drawn
@@ -194,6 +220,7 @@ class Dashboard {
         this.tbody = document.querySelector("#runs tbody");
         this.controlsEl = document.getElementById("controls");
         this.configEl = document.getElementById("config");
+        this.topicMetricsEl = document.getElementById("runs-topic-metrics");
         this.sectionsEl = document.getElementById("sections");
         this.sourceEl = document.getElementById("source");
         this.statusEl = document.getElementById("status");
@@ -244,8 +271,14 @@ class Dashboard {
             this.kind = data.kind;
         const tab = (data.tabs || []).find(t => t["slug"] === this.kind);
         this.topics = {};
-        for (const topic of (tab ? tab.topics : []))
+        this.topicColumns = {};
+        this.topicPlots = new Set();
+        for (const topic of (tab ? tab.topics : [])) {
             this.topics[topic["slug"]] = new Set(topic.plots);
+            this.topicColumns[topic["slug"]] = topic.columns || [];
+            topic.plots.forEach(p => this.topicPlots.add(p));
+        }
+        this.otherColumns = data.other_columns || [];
         this.columns = data.columns;
         this.rows = data.rows;
         // Restore the backend-persisted selection once, on the first load (survives a
@@ -273,9 +306,11 @@ class Dashboard {
         this.configEl.hidden = !config;
         this.sectionsEl.hidden = config;
         if (config) {
+            this.topicMetricsEl.hidden = true;
             await this._renderConfig();
             return;
         }
+        this._renderTopicMetrics();
         this.sectionsEl.querySelectorAll("section").forEach(sec => this._applyTopic(sec));
         // Sections for checked runs of this tab (first load + after a tab switch).
         // A drawn section is re-fetched when the run's status changed since it was
@@ -313,13 +348,28 @@ class Dashboard {
             this.configEl.innerHTML = html;
         }
     }
-    // Show only the picked topic's figures, or all of them for an item that is no topic (a tab without topics);
-    // a run drawn from its metrics shows under every topic.
+    // The picked topic's columns for the checked runs, in table order; Other and All show the unclaimed ones.
+    _renderTopicMetrics() {
+        const item = this.item;
+        const columns = (item === OTHER_ITEM || item === ALL_ITEM) ? this.otherColumns : (this.topicColumns[item] || []);
+        const rows = this.rows.filter(r => this.checked.has(String(r["run_id"])));
+        // Redraw only on a change, so the periodic refresh keeps the table's scroll position.
+        const html = topicMetricsHtml(columns, rows);
+        if (html !== this.topicMetricsHtml) {
+            this.topicMetricsHtml = html;
+            this.topicMetricsEl.innerHTML = html;
+        }
+        this.topicMetricsEl.hidden = html === "";
+    }
+    // Show only the picked topic's figures; under Other those no topic shows; all of them for an item that is
+    // no topic (a tab without topics). A run drawn from its metrics shows under every topic.
     _applyTopic(sec) {
         const plots = this.topics[this.item];
+        const other = this.item === OTHER_ITEM;
         let any = false;
         sec.querySelectorAll("figure[data-plot]").forEach(f => {
-            f.hidden = !!plots && !plots.has(f.dataset.plot);
+            const slug = f.dataset.plot;
+            f.hidden = other ? this.topicPlots.has(slug) : !!plots && !plots.has(slug);
             any = any || !f.hidden;
         });
         const none = sec.querySelector(".no-topic");
@@ -396,7 +446,8 @@ class Dashboard {
             });
         }
         if (this.filter) {
-            rows = rows.filter(r => this.columns.map(c => r[c]).join(" ").toLowerCase().includes(this.filter));
+            // Every row value, not only the shown columns: a topic's metrics stay searchable.
+            rows = rows.filter(r => Object.values(r).join(" ").toLowerCase().includes(this.filter));
         }
         return rows;
     }
@@ -456,8 +507,12 @@ class Dashboard {
             this.checked.delete(id);
         if (this.shown && this.item === CONFIG_ITEM) {
             await this._renderConfig();
+            await this._saveSelection();
+            return;
         }
-        else if (on) {
+        if (this.shown)
+            this._renderTopicMetrics();
+        if (on) {
             if (this.shown)
                 await this._ensureSection(id);
             const sec = document.getElementById("run-" + id);

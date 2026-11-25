@@ -1,4 +1,4 @@
-"""``RunsSpec`` — what a project declares for the runs pane: its tabs, their topics and the table's leading columns."""
+"""``RunsSpec`` — what a project declares for the runs pane: its tabs, their topics and the table's columns."""
 
 from dataclasses import dataclass
 
@@ -17,10 +17,15 @@ class RunsTab:
 
 @dataclass(frozen=True)
 class RunsSpec:
-    """Tabs in display order (the first is the default), the leading table columns, the configuration documents."""
+    """Tabs in display order (the first is the default), the table columns, the configuration documents.
+
+    ``table_columns`` are the only columns the run table shows, in this order. A results topic shows
+    the columns it claims, a table column included; a column neither shows goes under Other. Empty,
+    the table shows every column.
+    """
 
     tabs: tuple[RunsTab, ...]
-    leading_columns: tuple[str, ...] = ()
+    table_columns: tuple[str, ...] = ()
     config_documents: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:

@@ -23,8 +23,8 @@ HERE = Path(__file__).resolve().parent
 
 SPEC = RunsSpec(
     tabs=(RunsTab("models", "Models", ("model",)),),
-    leading_columns=("run_id", "label", "status", "created_at",
-                     "final_loss", "test_accuracy"),
+    table_columns=("run_id", "label", "status", "created_at",
+                   "final_loss", "test_accuracy"),
 )
 
 

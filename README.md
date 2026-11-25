@@ -5,7 +5,7 @@ A web shell and a runs dashboard for ML experiment records: one Flask service, i
 ## Parts
 
 - **Shell** (`ai_ui.shell`): `WebPane` is the pane contract (slug, title, blueprint, fragment, assets, background threads, menu entries); `WebApp` composes the page and serves it. The page has a left column with a Modules menu above a Details menu, and on the right a top area that stays and a detail area showing the picked Details entry.
-- **Runs pane** (`ai_ui.runs`): the run table in the top area; below it the selected runs' configuration or one results topic's figures; selection, deletion. A project declares its tabs (the modules), each tab's topics, the leading columns and the configuration documents as a `RunsSpec`, and its record layout as a `RecordReader` for `RecordIngest`.
+- **Runs pane** (`ai_ui.runs`): the run table in the top area; below it the selected runs' configuration or one results topic's metrics and figures; selection, deletion. A project declares its tabs (the modules), each tab's topics (their figures and the columns they take from the table), the table columns and the configuration documents as a `RunsSpec`, and its record layout as a `RecordReader` for `RecordIngest`.
 - **Entry** (`ai_ui.serve`): loads the shell config, builds the panes it names, serves.
 
 ## Use
@@ -18,7 +18,7 @@ from ai_ui.runs.runs_pane import RunsPane
 from ai_ui.runs.runs_spec import RunsSpec, RunsTab
 
 SPEC = RunsSpec(tabs=(RunsTab("model", "Models", ("model",)),),
-                leading_columns=("run_id", "label", "status"))
+                table_columns=("run_id", "label", "status"))
 
 def build_runs():
     config = RunsConfig.from_yaml("config/runs.yaml")

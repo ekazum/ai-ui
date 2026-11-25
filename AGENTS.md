@@ -4,7 +4,7 @@ ai-ui gives a web shell that hosts independent panes in one Flask service, and a
 records from a SQLite runs DB it keeps current by rescanning the record directories. A project adds a dashboard by
 describing its records to the runs pane, or by writing its own pane.
 
-Install: `pip install "ai-ui @ git+https://github.com/ekazum/ai-ui.git@v0.6.3"`.
+Install: `pip install "ai-ui @ git+https://github.com/ekazum/ai-ui.git@v0.7.0"`.
 
 ## What ai-ui provides, what the project writes
 
@@ -26,11 +26,14 @@ ai_ui.shell.web_pane.WebPane             # slug, title, blueprint(), fragment(),
 ai_ui.shell.menu_item.MenuItem(slug, caption, modules: tuple[str, ...] | None = None, children: tuple[MenuItem, ...] = ())
 ai_ui.shell.web_app.WebApp(config, panes)   .app  .serve()
 
-ai_ui.runs.runs_topic.RunsTopic(slug, caption, plots: tuple[str, ...])   # plots are figure slugs
+ai_ui.runs.runs_topic.RunsTopic(slug, caption, plots: tuple[str, ...], columns: tuple[str, ...] = ())
+    # plots are figure slugs; columns are table-row columns shown above them, exact names or "prefix.*"
 ai_ui.runs.runs_spec.RunsTab(slug, caption, kinds: tuple[str, ...], topics: tuple[RunsTopic, ...] = ())
-    # slug is the ?kind= value and the module slug
-ai_ui.runs.runs_spec.RunsSpec(tabs: tuple[RunsTab, ...], leading_columns: tuple[str, ...] = (),
+    # slug is the ?kind= value and the module slug; a tab with topics also gets an Other topic
+ai_ui.runs.runs_spec.RunsSpec(tabs: tuple[RunsTab, ...], table_columns: tuple[str, ...] = (),
                               config_documents: tuple[str, ...] = ())   # document names shown under Configuration
+    # table_columns: the only columns the run table shows (empty: all); a topic also shows the columns it
+    # claims first, table ones included; a column neither shows goes to Other
 ai_ui.runs.runs_config.RunsConfig.from_yaml(path)   .root_path  .db_path
 ai_ui.runs.ingest.RecordIngest(root, db_path, reader, default_kind="run")   .run()
 ai_ui.runs.runs_pane.RunsPane(config, spec, ingest, title="Runs")    # SLUG = "runs"
@@ -55,7 +58,7 @@ A runs dashboard (see `examples/minimal/app.py`):
 1. Each run writes a directory under `RUNS_ROOT` with `meta.json` holding `run_id`, `kind`, `label`, `created_at`,
    `status`, plus its CSV / JSON / YAML files.
 2. Write a `RecordReader` naming those files and building the table row.
-3. `SPEC = RunsSpec(tabs=(RunsTab("models", "Models", ("model",)),), leading_columns=("run_id", "label", ...))`.
+3. `SPEC = RunsSpec(tabs=(RunsTab("models", "Models", ("model",)),), table_columns=("run_id", "label", ...))`.
 4. A builder: `RunsPane(RunsConfig.from_yaml(p), SPEC, RecordIngest(config.root_path, config.db_path, Reader()))`.
 5. `raise SystemExit(serve({"runs": build_runs}))`, with `WEBAPP_PANES: [runs]` in `config/webapp.yaml`.
 

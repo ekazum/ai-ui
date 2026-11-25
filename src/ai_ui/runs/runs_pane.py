@@ -30,6 +30,8 @@ SLUG = "runs"
 CONFIG_ITEM = "configuration"
 # The Details item showing every figure, for a tab that declares no topics.
 ALL_ITEM = "all"
+# The last results topic of a tab with topics: the columns and figures no topic claims (app.ts OTHER_ITEM).
+OTHER_ITEM = "other"
 
 
 class Rescan(Protocol):
@@ -69,9 +71,13 @@ class RunsPane(WebPane):
         return tuple(MenuItem(tab.slug, tab.caption) for tab in self._spec.tabs)
 
     def details(self) -> tuple[MenuItem, ...]:
-        """Configuration; Results with each tab's topics under its module; a plain Results for a tab without topics."""
-        topics = tuple(MenuItem(topic.slug, topic.caption, (tab.slug,))
-                       for tab in self._spec.tabs for topic in tab.topics)
+        """Configuration; Results with each tab's topics, then Other, under its module.
+
+        A tab without topics gets a plain Results instead.
+        """
+        topics = tuple(item for tab in self._spec.tabs if tab.topics for item in (
+            *(MenuItem(topic.slug, topic.caption, (tab.slug,)) for topic in tab.topics),
+            MenuItem(OTHER_ITEM, "Other", (tab.slug,))))
         plain = tuple(tab.slug for tab in self._spec.tabs if not tab.topics)
         items = [MenuItem(CONFIG_ITEM, "Configuration")]
         if topics:
